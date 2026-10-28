@@ -1,7 +1,7 @@
 # 🏆 Torneio de Criptografia — Engine Ultrarrápida & Precisa
 
-> Desenvolvido por **Victor Herculini**  
-> Repositório: [victorherculini/torneio-criptografia](https://github.com/victorherculini/torneio-criptografia)  
+> Equipe: **Victor Herculini & Tiago Setti**  
+> Repositório Oficial: [victorherculini/torneio-criptografia](https://github.com/victorherculini/torneio-criptografia)  
 > Totalmente em conformidade com o **Regulamento Oficial do Torneio** (Fases 1, 2, 3 e 4).
 
 ![Python Version](https://img.shields.io/badge/python-3.10%2B-blue.svg)
@@ -196,3 +196,4 @@ Tudo passou.
      - **Fase 3**: Vigenère 3 letras + XOR 2 bytes (`30.1 bits`).
      - **Fase 4**: Vigenère 5 letras + XOR 2 bytes (`39.5 bits`).
    - Isso força os adversários a estourar o tempo $T$, $2T$ e $3T$, rendendo a você até **1,75 ponto como cifrador**.
+

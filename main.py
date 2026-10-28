@@ -4,7 +4,7 @@
 ================================================================================
   TORNEIO DE CRIPTOGRAFIA - SISTEMA DE ATAQUE, DEFESA E AUDITORIA v5.0
   Repositório Oficial: https://github.com/victorherculini/torneio-criptografia
-  Autor: Victor Herculini
+  Autores: Victor Herculini & Tiago Setti
 ================================================================================
 Engine desenvolvida sob medida para o regulamento do Torneio de Criptografia.
 Suporta Fases 1 a 4 com desempenho instantâneo (< 10 ms), precisão cirúrgica (0 erros),
@@ -248,13 +248,32 @@ def regras(passos_lista: list, fase: int) -> list[str]:
 # 3. I/O E TRATAMENTO UTF-8 REGULAMENTAR
 # ==============================================================================
 
-def ler_claro(caminho) -> bytes:
-    return Path(caminho).read_bytes().strip()
+def resolver_caminho(caminho_ou_str: str, subpastas=("desafios", "exemplos", "meus_desafios")) -> str:
+    """Busca o arquivo no caminho direto ou nas subpastas organizadas."""
+    s = str(caminho_ou_str).strip()
+    if os.path.exists(s):
+        return s
+    for pasta in subpastas:
+        tentativa = os.path.join(BASE_DIR, pasta, s)
+        if os.path.exists(tentativa):
+            return tentativa
+    tentativa_raiz = os.path.join(BASE_DIR, s)
+    if os.path.exists(tentativa_raiz):
+        return tentativa_raiz
+    return ""
+
+
+def ler_claro(caminho_ou_str) -> bytes:
+    p = resolver_caminho(caminho_ou_str, ("meus_desafios", "exemplos", "desafios"))
+    if p:
+        return Path(p).read_bytes().strip()
+    return str(caminho_ou_str).strip().encode("utf-8")
 
 
 def ler_cifrado(caminho_ou_str) -> bytes:
-    if os.path.exists(caminho_ou_str):
-        conteudo = Path(caminho_ou_str).read_bytes().decode("utf-8")
+    p = resolver_caminho(caminho_ou_str, ("desafios", "exemplos", "meus_desafios"))
+    if p:
+        conteudo = Path(p).read_bytes().decode("utf-8")
     else:
         conteudo = str(caminho_ou_str)
     if conteudo.endswith("\r\n"):
@@ -695,23 +714,42 @@ def recomendar_estrategia(fase: int):
 # 10. MODO VIGIAR / LIVE MONITOR (AUTOMÁTICO EM SEGUNDO PLANO)
 # ==============================================================================
 
-def vigiar_pasta(fase: int, pasta_alvo: str = "."):
+def vigiar_pasta(fase: int, pasta_alvo: str = None):
     """
-    Monitora a pasta e decifra automaticamente o primeiro arquivo .txt
-    novo que aparecer, copiando a resposta para o Clipboard instantaneamente!
+    Monitora a pasta e a subpasta 'desafios/' simultaneamente.
+    Decifra no instante em que o arquivo aparecer e copia a resposta para o Clipboard!
     """
-    print(f"\n{Cor.CIANO}{Cor.NEGRITO}📡 MODO MONITOR ATIVO NA FASE {fase} ({pasta_alvo}){Cor.RESET}")
-    print("Aguardando arquivo do professor aparecer na pasta...")
-    arquivos_vistos = set(os.listdir(pasta_alvo))
+    pastas = [os.path.abspath(pasta_alvo)] if pasta_alvo else [
+        str(BASE_DIR),
+        str(BASE_DIR / "desafios")
+    ]
+    for p in pastas:
+        os.makedirs(p, exist_ok=True)
+
+    print(f"\n{Cor.CIANO}{Cor.NEGRITO}📡 MODO MONITOR ATIVO NA FASE {fase}{Cor.RESET}")
+    print(f"Monitorando pastas: {', '.join(pastas)}")
+    print("Aguardando arquivo do professor aparecer...")
+
+    def listar_arquivos():
+        encontrados = {}
+        for p in pastas:
+            if os.path.exists(p):
+                for f in os.listdir(p):
+                    if f.endswith(".txt") and not f.startswith("saida") and not f.startswith("portugues") and not f.startswith("exemplo") and not f.startswith("data"):
+                        caminho_completo = os.path.join(p, f)
+                        encontrados[f] = caminho_completo
+        return encontrados
+
+    arquivos_vistos = set(listar_arquivos().keys())
 
     try:
         while True:
             time.sleep(0.3)
-            atuais = set(os.listdir(pasta_alvo))
-            novos = [f for f in atuais - arquivos_vistos if f.endswith(".txt") and not f.startswith("saida")]
+            atuais = listar_arquivos()
+            novos = [nome for nome in atuais if nome not in arquivos_vistos]
             if novos:
                 alvo = novos[0]
-                caminho = os.path.join(pasta_alvo, alvo)
+                caminho = atuais[alvo]
                 print(f"\n{Cor.VERDE}{Cor.NEGRITO}⚡ NOVO DESAFIO DETECTADO: {alvo}! Decifrando...{Cor.RESET}")
                 t0 = time.perf_counter()
                 dados = ler_cifrado(caminho)
@@ -720,17 +758,28 @@ def vigiar_pasta(fase: int, pasta_alvo: str = "."):
 
                 if res:
                     sc, pt, ps = res[0]
+                    chaves_str = [k.hex() if isinstance(k, bytes) else ("-" if k is None else str(k)) for _, k in ps]
+                    cifras_str = [n for n, _ in ps]
                     texto_resposta = (
-                        f"TEXTO CLARO:\n{pt.decode('latin-1')}\n\n"
-                        f"CIFRAS: {', '.join(n for n, _ in ps)}\n"
-                        f"CHAVES: {', '.join(k.hex() if isinstance(k, bytes) else str(k) for _, k in ps)}"
+                        f"1. TEXTO CLARO:\n{pt.decode('latin-1')}\n\n"
+                        f"2. CIFRAS (Ordem de Aplicação):\n{', '.join(cifras_str)}\n\n"
+                        f"3. CHAVES:\n{', '.join(chaves_str)}"
                     )
                     copiar_clipboard(texto_resposta)
-                    print(f"\n{Cor.VERDE}🎯 QUEBRADO EM {dt:.2f} ms! RESPOSTA COPIADA PARA O CLIPBOARD (CTRL+V)!{Cor.RESET}")
+                    print("\n" + "=" * 65)
+                    print(f"{Cor.VERDE}🎯 QUEBRADO EM {dt:.2f} ms! RESPOSTA COPIADA PARA O CLIPBOARD (CTRL+V)!{Cor.RESET}")
+                    print("=" * 65)
                     print(texto_resposta)
+                    print("=" * 65)
+
+                    violacoes = auditar_desafio(pt, dados, ps, fase)
+                    if violacoes:
+                        print(f"\n{Cor.VERMELHO}🚨 ALERTA: O ADVERSÁRIO COMETEU VIOLAÇÃO! Solicite anulação (-1 ponto):{Cor.RESET}")
+                        for v in violacoes:
+                            print(f"  ⚠️  {v}")
                 else:
                     print(f"{Cor.VERMELHO}❌ Não foi possível quebrar automaticamente.{Cor.RESET}")
-                arquivos_vistos = atuais
+                arquivos_vistos = set(atuais.keys())
     except KeyboardInterrupt:
         print("\nMonitor encerrado.")
 
@@ -743,7 +792,8 @@ def imprimir_banner():
     print(f"""{Cor.CIANO}{Cor.NEGRITO}
   ╔═══════════════════════════════════════════════════════════════════════╗
   ║       🏆 TORNEIO DE CRIPTOGRAFIA - ULTRA ENGINE v5.0 🏆             ║
-  ║       Desenvolvido para Victor Herculini (github/victorherculini)    ║
+  ║       Equipe: Victor Herculini & Tiago Setti                          ║
+  ║       Repositório: github.com/victorherculini/torneio-criptografia   ║
   ╚═══════════════════════════════════════════════════════════════════════╝{Cor.RESET}""")
 
 
